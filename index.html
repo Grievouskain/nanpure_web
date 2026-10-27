@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ナンプレ Solver</title>
+<meta name="description" content="ナンプレ（数独）の解答・問題自動生成ができるWebアプリ">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E🔢%3C/text%3E%3C/svg%3E">
+<style>
+:root{--pri:#1F5B96;--onpri:#fff;--sel:#B7DEFF;--given:#E8EDF3;--ok:#167445;--err:#B42318;--bg:#fff;--fg:#1c2430;--mute:#5b6676;--line:#c5cdd8;--thick:#2b3645;--solved:#1F5B96;--same:#e3f1ff;--panel:#f5f8fb;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pri:#3d7fc4;--sel:#245284;--given:#263241;--ok:#4cc38a;--err:#ff8a7a;--bg:#10161e;--fg:#e6ebf2;--mute:#9aa6b6;--line:#3a4657;--thick:#aab6c6;--solved:#7fbcf5;--same:#1a3350;--panel:#18212c;color-scheme:dark}}
+:root[data-theme="dark"]{--pri:#3d7fc4;--sel:#245284;--given:#263241;--ok:#4cc38a;--err:#ff8a7a;--bg:#10161e;--fg:#e6ebf2;--mute:#9aa6b6;--line:#3a4657;--thick:#aab6c6;--solved:#7fbcf5;--same:#1a3350;--panel:#18212c;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.7 "Hiragino Sans","Noto Sans JP","Yu Gothic UI","Meiryo",sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+header b{font-size:18px;color:var(--pri);letter-spacing:.02em}
+a.lnk{color:var(--fg);background:none;border:0;font:inherit;text-decoration:underline;cursor:pointer;min-height:44px;padding:0 4px}
+main{max-width:980px;margin:0 auto;padding:20px 12px 40px}
+button{font:inherit;min-height:44px;min-width:44px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer;padding:0 14px}
+button:hover:not(:disabled){border-color:var(--pri)}
+button:disabled{opacity:.45;cursor:not-allowed}
+:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+button.main{background:var(--pri);color:var(--onpri);border-color:var(--pri);font-weight:700}
+h1{font-size:clamp(26px,6vw,38px);margin:.6em 0 .2em;line-height:1.3}
+.home{max-width:640px;margin:0 auto;padding-top:24px}
+.home ul{padding:0;list-style:none;margin:28px 0;display:grid;gap:10px}
+.home li{padding:12px 16px;background:var(--panel);border-left:4px solid var(--pri);border-radius:6px}
+.home li span{color:var(--mute);font-size:14px;display:block}
+.home .main{width:100%;font-size:18px;min-height:52px}
+.top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.top h2{margin:0;font-size:22px}
+.tag{font-size:14px;padding:2px 12px;border-radius:99px;border:1px solid var(--pri);color:var(--pri)}
+.tag.done{border-color:var(--ok);color:var(--ok)}
+.sub{margin:4px 0 14px;color:var(--mute)}
+.wrap{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.grid{--g:min(94vw,540px);width:var(--g);height:var(--g);display:grid;grid-template-columns:repeat(9,minmax(0,1fr));grid-template-rows:repeat(9,minmax(0,1fr));border:3px solid var(--thick);border-radius:4px;overflow:hidden;flex:none;max-width:100%}
+.c{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;border:1px solid var(--line);font-size:clamp(18px,5.4vw,28px);background:var(--bg);color:var(--fg);min-width:0;min-height:0;overflow:hidden;line-height:1}
+.c:nth-child(9n+3),.c:nth-child(9n+6){border-right:2px solid var(--thick)}
+.c:nth-child(n+19):nth-child(-n+27),.c:nth-child(n+46):nth-child(-n+54){border-bottom:2px solid var(--thick)}
+.c.peer{background:var(--same)}
+.c.given{background:var(--given);font-weight:700}
+.c.user{color:var(--pri)}
+.c.new{color:var(--solved)}
+.c.same{background:var(--sel)}
+.c.sel{background:var(--sel);outline:3px solid var(--pri);outline-offset:-3px;z-index:1}
+.c.bad{outline:3px solid var(--err);outline-offset:-3px;color:var(--err);z-index:1}
+.c.bad::after{content:"!";position:absolute;top:1px;right:4px;font-size:12px;font-weight:700;color:var(--err)}
+.c:focus-visible{outline:3px solid var(--fg);outline-offset:-3px}
+.nt{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);width:100%;height:100%;padding:1px;font-size:clamp(8px,2.3vw,12px);line-height:1;color:var(--mute);text-align:center;align-items:center;font-weight:400}
+.panel{flex:1;min-width:260px;max-width:420px;width:100%}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pad button{min-height:56px;font-size:24px}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.acts .main,.acts .wide{grid-column:1/-1}
+.acts .main{min-height:52px;font-size:18px}
+#status,#gstatus{margin-top:16px;padding:12px 14px;border-radius:8px;background:var(--panel);border-left:5px solid var(--pri);min-height:52px}
+#status.err,#gstatus.err{border-color:var(--err);color:var(--err);font-weight:600}
+#status.ok,#gstatus.ok{border-color:var(--ok);color:var(--ok);font-weight:600}
+.note{color:var(--mute);font-size:14px;margin-top:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 16px}.card{text-align:left;min-height:88px;padding:10px 12px;border:2px solid var(--line);display:block}.card b{display:block}.card span{font-size:13px;color:var(--mute);line-height:1.4;display:block}.card[aria-pressed=true]{border-color:var(--pri);background:var(--sel)}.gbtn{width:100%;max-width:420px;font-size:18px;min-height:52px;margin-bottom:16px;display:block}.info{margin:0 0 14px;display:grid;grid-template-columns:auto 1fr;gap:4px 14px}.info dt{color:var(--mute)}.info dd{margin:0;font-weight:600}#ggrid .c{cursor:default}
+.c.hint{color:var(--ok)}.c.bad.hint{color:var(--err)}.memob[aria-pressed=true]{background:var(--sel);border-color:var(--pri);font-weight:700}.hcnt{margin:-6px 0 12px;font-weight:700;color:var(--pri)}
+[hidden]{display:none!important}
+@media (max-width:640px){.wrap{gap:16px}.panel{max-width:none}}
+@media (prefers-reduced-motion:no-preference){button{transition:border-color .15s}}
+</style>
+</head>
+<body>
+<header><b>ナンプレ Solver</b><span><button class="lnk" id="hm" type="button">トップへ</button> <button class="lnk" id="how" type="button">使い方</button></span></header>
+<main>
+<section id="home" class="home">
+  <h1>ナンプレを解こう！</h1>
+  <p>問題を入力して、解答ボタンを押してください。</p>
+  <ul>
+    <li><b>数字を入力するだけ</b><span>マスを選んで数字を押します。</span></li>
+    <li><b>自動で解答を計算</b><span>矛盾の検出、解なし、複数解の判定つき。</span></li>
+    <li><b>スマホ・PCに対応</b><span>キーボード入力もできます。</span></li>
+  </ul>
+  <button class="main" id="start" type="button">持っている問題を解く</button>
+  <button class="main" id="gstart" type="button" style="margin-top:10px">問題を自動生成する</button>
+  <p class="note">難易度を選ぶと、解答が一つだけの問題を自動作成します。</p>
+  <p class="note">入力した問題はこの端末のブラウザ内だけで処理され、外部へ送信されません。盤面と生成した問題はこのブラウザ（localStorage）に自動保存されます。<br><button class="lnk" id="wipe" type="button">保存データを削除</button></p>
+</section>
+
+<section id="solver" hidden>
+  <div class="top"><h2 id="ttl">問題を入力</h2><span class="tag" id="tag">入力中</span></div>
+  <p class="sub" id="sub">マスを選び、数字ボタンから数字を入力してください。</p>
+  <p class="hcnt" id="hcnt" hidden></p>
+  <div class="wrap">
+    <div id="grid" class="grid" role="grid" aria-label="ナンプレ盤面"></div>
+    <div class="panel">
+      <div id="editP">
+        <div class="pad" id="pad"></div>
+        <div class="acts">
+          <button type="button" id="del">消去</button>
+          <button type="button" id="undo">元に戻す</button>
+          <button type="button" id="memo" class="memob" aria-pressed="false">メモ入力：OFF</button>
+          <button type="button" id="hint">ヒント</button>
+          <button type="button" id="clr">全消去</button>
+          <button type="button" id="memox">メモ消去</button>
+          <button type="button" id="smp" class="wide">サンプル問題を入れる</button>
+          <button type="button" id="solve" class="main">解答する</button>
+        </div>
+      </div>
+      <div id="resP" class="acts" hidden>
+        <button type="button" id="copy" class="wide">盤面をコピー</button>
+        <button type="button" id="redo">問題を再編集</button>
+        <button type="button" id="newp">別の問題を解く</button>
+      </div>
+      <div id="status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+<section id="gen" hidden>
+  <div class="top"><h2>ナンプレを作る</h2><button class="lnk" id="gback" type="button">トップへ戻る</button></div>
+  <p class="sub">難易度を選ぶと、自動で問題を生成します。</p>
+  <div class="cards" id="cards"></div>
+  <button class="main gbtn" id="gen-go" type="button">新しい問題を作る</button>
+  <div id="gres" class="wrap" hidden>
+    <div id="ggrid" class="grid" role="grid" aria-label="生成された問題"></div>
+    <div class="panel">
+      <dl class="info" id="info"></dl>
+      <div class="acts">
+        <button type="button" id="gsolve" class="main wide">この問題を解く</button>
+        <button type="button" id="gans">答えを見る</button>
+        <button type="button" id="gagain">もう一問</button>
+        <button type="button" id="gtop" class="wide">トップへ戻る</button>
+      </div>
+      <p class="note">難易度は論理手筋で判定した暫定評価です（空マス数だけでは決めていません）。</p>
+    </div>
+  </div>
+  <div id="gstatus" role="status" aria-live="polite"></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const SAMPLE="530070000600195000098000060800060003400803001700020006060000280000419005000080079";
+let fx=null,fsol=null,hc=0,notes=null,memoMode=false,hm=Array(81).fill(false),cells=Array(81).fill(0),puzzle=null,sol=null,multi=false,sel=-1,hist=[],busy=false,warnEmpty=false,msg=null,hintOn=false;
+const rng=n=>[...Array(n).keys()];
+const PEERS=rng(81).map(i=>{const r=i/9|0,c=i%9,br=r-r%3,bc=c-c%3;return rng(81).filter(j=>j!==i&&((j/9|0)===r||j%9===c||((j/9|0)>=br&&(j/9|0)<br+3&&j%9>=bc&&j%9<bc+3)))});
+const cand=(b,i)=>{const u=new Set(PEERS[i].map(j=>b[j]));return [1,2,3,4,5,6,7,8,9].filter(d=>!u.has(d))};
+
+function conflicts(b){
+  const bad=new Set(),why=[];
+  const chk=(ids,n)=>{const m={};ids.forEach(i=>{if(b[i])(m[b[i]]=m[b[i]]||[]).push(i)});
+    for(const k in m)if(m[k].length>1){m[k].forEach(i=>bad.add(i));if(!why.includes(n))why.push(n)}};
+  for(let a=0;a<9;a++){
+    chk(rng(9).map(i=>a*9+i),'行');chk(rng(9).map(i=>i*9+a),'列');
+    const r=3*(a/3|0),c=3*(a%3);chk(rng(9).map(i=>(r+(i/3|0))*9+c+i%3),'3×3ブロック');
+  }
+  return{bad,why};
+}
+function search(b,lim,out){
+  let best=-1,bc=[],bn=10;
+  for(let i=0;i<81;i++)if(!b[i]){const c=cand(b,i);if(c.length<bn){bn=c.length;best=i;bc=c;if(bn<2)break}}
+  if(best<0){if(!out.s)out.s=b.slice();return 1}
+  let n=0;
+  for(const d of bc){b[best]=d;n+=search(b,lim,out);b[best]=0;if(n>=lim)return n}
+  return n;
+}
+function verify(s,p){
+  if(s.length!==81||p.some((v,i)=>v&&s[i]!==v))return false;
+  const ok=ids=>new Set(ids.map(i=>s[i])).size===9&&ids.every(i=>s[i]>=1&&s[i]<=9);
+  for(let a=0;a<9;a++){
+    const r=3*(a/3|0),c=3*(a%3);
+    if(!ok(rng(9).map(i=>a*9+i))||!ok(rng(9).map(i=>i*9+a))||!ok(rng(9).map(i=>(r+(i/3|0))*9+c+i%3)))return false;
+  }
+  return true;
+}
+
+function aux(){fsol=null;hc=0;notes=null;memoMode=false;hm=Array(81).fill(false)}
+function snap(){return{c:cells.slice(),n:notes?notes.slice():null}}
+function memoPut(d){
+  if(cells[sel]){setMsg('数字が入っているマスにはメモを付けられません。');return}
+  if(!notes)notes=Array(81).fill(0);
+  hist.push(snap());if(hist.length>200)hist.shift();
+  notes[sel]=d?notes[sel]^(1<<d):0;setMsg(null);
+}
+function hint(){
+  if(sol||busy)return;
+  const{bad,why}=conflicts(cells);
+  if(bad.size){setMsg('重複があるためヒントを出せません。'+why.map(w=>`同じ${w}に数字が重複しています。`).join(' '),'err');return}
+  if(!cells.includes(0)){setMsg('空のマスがありません。');return}
+  let s=fsol;
+  if(!s){
+    const o={},n=search(cells.slice(),2,o);
+    if(!n){setMsg('現在の入力では解答が見つかりません。入力を確認してください。','err');return}
+    if(n>1){setMsg('解答が複数あるため、ヒントを出せません。','err');return}
+    s=o.s;
+  }
+  let i=sel>=0&&!cells[sel]?sel:-1;
+  if(i<0){let bn=10;for(let k=0;k<81;k++)if(!cells[k]){const c=cand(cells,k).length;if(c<bn){bn=c;i=k}}}
+  hist.push(snap());if(hist.length>200)hist.shift();
+  cells[i]=s[i];hm[i]=true;hc++;sel=i;if(notes){notes[i]=0;for(const j of PEERS[i])notes[j]&=~(1<<s[i])}
+  setMsg(`${(i/9|0)+1}行${i%9+1}列に ${s[i]} を入力しました。（ヒント${hc}回目）`,'ok');
+}
+function setMsg(t,k){msg=t?{t,k:k||''}:null;render()}
+function put(d){
+  if(sol)return;
+  if(sel<0){setMsg('先にマスを選択してください。');return}
+  if(fx&&fx[sel]){setMsg('固定数字は変更できません。');return}if(memoMode&&!(d===0&&cells[sel])){memoPut(d);return}if(cells[sel]===d)return;
+  hist.push(snap());if(hist.length>200)hist.shift();
+  cells[sel]=d;hm[sel]=false;if(notes&&d){notes[sel]=0;for(const j of PEERS[sel])notes[j]&=~(1<<d)}warnEmpty=false;setMsg(null);
+}
+function undo(){if(sol||!hist.length)return;const h=hist.pop();cells=h.c;notes=h.n;setMsg(null)}
+function solve(){
+  if(busy||sol)return;
+  const{bad,why}=conflicts(cells);
+  if(bad.size){setMsg(why.map(w=>`同じ${w}に数字が重複しています。`).join(' '),'err');return}
+  if(!cells.some(Boolean)&&!warnEmpty){warnEmpty=true;setMsg('盤面が空です。このまま解くと複数解になります。続ける場合はもう一度「解答する」を押してください。');return}
+  warnEmpty=false;busy=true;setMsg('計算中…');
+  setTimeout(()=>{
+    try{
+      const out={},n=search(cells.slice(),2,out);
+      if(!n)setMsg('解答が見つかりません。入力内容を確認してください。','err');
+      else if(!verify(out.s,cells))throw new Error('verify');
+      else{puzzle=cells.slice();sol=out.s;multi=n>1;sel=-1;hist=[];
+        setMsg(multi?'複数の解答が存在します。最初に見つかった解答を表示しています。':'解答が完成しました！',multi?'':'ok')}
+    }catch(e){console.error(e);setMsg('処理に失敗しました。もう一度お試しください。','err')}
+    busy=false;render();
+  },30);
+}
+function copyText(){
+  const b=sol||cells,t=rng(9).map(r=>b.slice(r*9,r*9+9).join('')).join('\n');
+  const fb=()=>{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand('copy')}catch(e){}a.remove();setMsg(ok?'盤面をコピーしました。':'コピーに失敗しました。','');};
+  if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>setMsg('盤面をコピーしました。','ok'),fb);else fb();
+}
+function load(s){fx=null;aux();cells=s.split('').map(Number);hist=[];sel=-1;setMsg(null)}
+function move(dr,dc){if(sol)return;const i=sel<0?0:sel;sel=Math.min(8,Math.max(0,(i/9|0)+dr))*9+Math.min(8,Math.max(0,i%9+dc));render();$('#grid').children[sel].focus()}
+
+function nt(m){return'<span class="nt">'+rng(9).map(d=>'<span>'+(m&(1<<(d+1))?d+1:'')+'</span>').join('')+'</span>'}
+function render(){save();
+  const bad=conflicts(sol?[]:cells).bad,v=sol||cells,sv=sel>=0?v[sel]:0;
+  $('#grid').innerHTML=v.map((n,i)=>{
+    let k='c';
+    if(sol)k+=puzzle[i]?' given':' new';else k+=n?(fx&&fx[i]?' given':hm[i]?' hint':' user'):'';
+    if(sel>=0&&PEERS[sel].includes(i))k+=' peer';
+    if(sv&&n===sv)k+=' same';
+    if(i===sel)k+=' sel';
+    if(bad.has(i))k+=' bad';
+    return`<button type="button" class="${k}" data-i="${i}" role="gridcell" aria-label="${(i/9|0)+1}行${i%9+1}列 ${n?n+(bad.has(i)?' 重複':''):'空'}"${sol?' tabindex="-1"':''}>${n||(notes&&!sol?nt(notes[i]):'')}</button>`;
+  }).join('');
+  $('#editP').hidden=!!sol;$('#resP').hidden=!sol;
+  $('#ttl').textContent=sol?'解答結果':'問題を入力';
+  $('#tag').textContent=sol?'解答済み':'入力中';$('#tag').className='tag'+(sol?' done':'');
+  $('#sub').textContent=sol?'濃い数字は入力した問題、青い数字は計算で埋めた数字です。':'マスを選び、数字ボタンから数字を入力してください。';
+  $('#solve').disabled=busy;$('#solve').textContent=busy?'計算中…':'解答する';
+  $('#undo').disabled=!hist.length;$('#hint').textContent='ヒント';$('#memo').textContent=memoMode?'メモ入力：ON':'メモ入力：OFF';$('#memo').setAttribute('aria-pressed',String(memoMode));$('#hcnt').hidden=!sol;$('#hcnt').textContent=`ヒント使用回数：${hc}回`;
+  let t=msg,k=msg?msg.k:'';
+  if(!msg){
+    const c=conflicts(cells);
+    if(c.bad.size){t={t:c.why.map(w=>`同じ${w}に数字が重複しています。`).join(' ')};k='err'}
+    else if(memoMode){t={t:'メモ入力中：空のマスを選び、数字ボタンでメモを追加・削除できます。'};k=''}
+    else t={t:sel<0?'マスを選択してください。':'数字を入力してください。'};
+  }
+  $('#status').textContent=t.t;$('#status').className=k;
+}
+
+$('#pad').innerHTML=rng(9).map(i=>`<button type="button" data-d="${i+1}" aria-label="数字${i+1}を入力">${i+1}</button>`).join('');
+$('#pad').onclick=e=>{const d=e.target.dataset.d;if(d)put(+d)};
+$('#grid').onclick=e=>{const b=e.target.closest('.c');if(b&&!sol){sel=+b.dataset.i;setMsg(null)}};
+$('#del').onclick=()=>{if(sel>=0&&cells[sel])put(0);else setMsg(sel<0?'先にマスを選択してください。':'このマスは空です。')};
+$('#undo').onclick=undo;
+$('#hint').onclick=hint;
+$('#memo').onclick=()=>{if(sol)return;memoMode=!memoMode;if(memoMode&&!notes)notes=cells.map((v,i)=>v?0:cand(cells,i).reduce((m,d)=>m|1<<d,0));setMsg(null)};
+$('#memox').onclick=()=>{notes=null;memoMode=false;setMsg('メモを消去しました。')};
+$('#clr').onclick=()=>{if(cells.some(Boolean)){hist.push(snap());cells=fx?cells.map((v,i)=>fx[i]?v:0):Array(81).fill(0)}notes=null;memoMode=false;hm=Array(81).fill(false);if(!fx)hc=0;setMsg(null)};
+$('#smp').onclick=()=>load(SAMPLE);
+$('#solve').onclick=solve;
+$('#copy').onclick=copyText;
+$('#redo').onclick=()=>{cells=puzzle.slice();sol=null;hist=[];setMsg(null)};
+$('#newp').onclick=()=>{fx=null;aux();sol=null;cells=Array(81).fill(0);hist=[];sel=-1;setMsg(null)};
+function show(v){['home','solver','gen'].forEach(x=>$('#'+x).hidden=x!==v);if(v==='solver')render();else if(v==='gen')grender();scrollTo(0,0)}
+$('#start').onclick=()=>show('solver');
+$('#how').onclick=()=>{if(!$('#solver').hidden){setMsg('マスを選んで1〜9を入力し、「解答する」を押します。キーボードは矢印キー、数字キー、Backspace、Ctrl+Z（元に戻す）が使えます。')}else if(!$('#gen').hidden){G.msg='難易度を選んで「新しい問題を作る」を押すと、解答が一つだけの問題を自動作成します。';G.k='';grender()}else{show('solver');setMsg('マスを選んで1〜9を入力し、「解答する」を押します。キーボードは矢印キー、数字キー、Backspace、Ctrl+Z（元に戻す）が使えます。')}};
+/* ===== 問題生成 ===== */
+const LV=[['初級','単独候補だけで解ける基本問題'],['中級','隠れシングルが必要になる標準問題'],['上級','ペア・トリプル・指向線などの候補整理'],['超難問','高度な推論や探索が必要な問題']];
+const TN=['単独候補','隠れシングル','ネイキッドペア','指向線','ネイキッドトリプル'];
+const G={d:1,busy:false,res:null,show:false,msg:null,k:''};
+const UN=[...rng(9).map(r=>rng(9).map(c=>r*9+c)),...rng(9).map(c=>rng(9).map(r=>r*9+c)),...rng(9).map(b=>rng(9).map(k=>((b/3|0)*3+(k/3|0))*9+(b%3)*3+k%3))];
+const pcnt=m=>{let n=0;for(;m;m&=m-1)n++;return n};
+function mb32(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function fillGrid(b,rnd){
+  let best=-1,cs=[],bn=10;
+  for(let i=0;i<81;i++)if(!b[i]){const c=cand(b,i);if(c.length<bn){bn=c.length;best=i;cs=c;if(bn<2)break}}
+  if(best<0)return true;
+  for(let k=cs.length-1;k>0;k--){const j=rnd()*(k+1)|0;[cs[k],cs[j]]=[cs[j],cs[k]]}
+  for(const d of cs){b[best]=d;if(fillGrid(b,rnd))return true}
+  b[best]=0;return false;
+}
+function rate(p){
+  const b=p.slice(),cm=Array(81).fill(0);
+  for(let i=0;i<81;i++)if(!b[i])cm[i]=cand(b,i).reduce((m,d)=>m|1<<d,0);
+  const place=(i,d)=>{b[i]=d;cm[i]=0;for(const j of PEERS[i])cm[j]&=~(1<<d)};
+  const subset=k=>{
+    for(const u of UN){
+      const c=u.filter(i=>cm[i]&&pcnt(cm[i])<=k);
+      const rec=(s,st,m)=>{
+        if(s.length===k){if(pcnt(m)!==k)return false;let ch=false;for(const i of u)if(!s.includes(i)&&(cm[i]&m)){cm[i]&=~m;ch=true}return ch}
+        for(let x=st;x<c.length;x++)if(rec([...s,c[x]],x+1,m|cm[c[x]]))return true;
+        return false};
+      if(rec([],0,0))return true}
+    return false};
+  const locked=()=>{
+    let ch=false;
+    for(let d=1;d<10;d++){const bit=1<<d;
+      for(let x=18;x<27;x++){const cs=UN[x].filter(i=>cm[i]&bit);if(cs.length<2)continue;
+        const rs=new Set(cs.map(i=>i/9|0)),cl=new Set(cs.map(i=>i%9));
+        if(rs.size===1){const r=[...rs][0];for(let k=0;k<9;k++){const i=r*9+k;if((cm[i]&bit)&&!UN[x].includes(i)){cm[i]&=~bit;ch=true}}}
+        if(cl.size===1){const c=[...cl][0];for(let k=0;k<9;k++){const i=k*9+c;if((cm[i]&bit)&&!UN[x].includes(i)){cm[i]&=~bit;ch=true}}}}
+      for(let x=0;x<18;x++){const cs=UN[x].filter(i=>cm[i]&bit);if(cs.length<2)continue;
+        const bs=new Set(cs.map(i=>((i/9|0)/3|0)*3+(i%9/3|0)));
+        if(bs.size===1){for(const i of UN[18+[...bs][0]])if((cm[i]&bit)&&!UN[x].includes(i)){cm[i]&=~bit;ch=true}}}}
+    return ch};
+  const T=[
+    ()=>{for(let i=0;i<81;i++)if(cm[i]&&pcnt(cm[i])===1){place(i,31-Math.clz32(cm[i]));return true}return false},
+    ()=>{for(const u of UN)for(let d=1;d<10;d++){const cs=u.filter(i=>cm[i]&(1<<d));if(cs.length===1){place(cs[0],d);return true}}return false},
+    ()=>subset(2),locked,()=>subset(3)];
+  let max=0,steps=0;
+  for(;;){
+    if(b.every(Boolean))break;
+    if(b.some((v,i)=>!v&&!cm[i]))return{level:4,tech:max,steps,search:true};
+    let ok=false;
+    for(let t=0;t<5;t++)if(T[t]()){max=Math.max(max,t+1);steps++;ok=true;break}
+    if(!ok)return{level:4,tech:max,steps,search:true};
+  }
+  return{level:max<=1?1:max===2?2:3,tech:max,steps,search:false};
+}
+function genOnce(L,seed){
+  const rnd=mb32(seed),s=Array(81).fill(0);
+  fillGrid(s,rnd);
+  if(!verify(s,Array(81).fill(0)))return null;
+  const p=s.slice(),ord=rng(81);
+  for(let k=80;k>0;k--){const j=rnd()*(k+1)|0;[ord[k],ord[j]]=[ord[j],ord[k]]}
+  for(const i of ord){
+    const o=p[i];p[i]=0;
+    if(search(p.slice(),2,{})!==1||(L<4&&rate(p).level>L))p[i]=o;
+  }
+  if(search(p.slice(),2,{})!==1)return null;
+  const r=rate(p);
+  return r.level===L?{puzzle:p,solution:s,rating:r}:null;
+}
+function gen(){
+  if(G.busy)return;
+  G.busy=true;G.res=null;G.show=false;G.msg='問題を作成しています…';G.k='';grender();
+  const L=G.d,t0=performance.now(),base=(Date.now()^(Math.random()*4294967296))>>>0;let n=0;
+  const step=()=>{
+    if(n>=60||performance.now()-t0>15000){G.busy=false;G.msg='指定難易度の問題を作成できませんでした。再試行してください。';G.k='err';grender();return}
+    n++;const seed=(base+n)>>>0;let r=null;
+    try{r=genOnce(L,seed)}catch(e){console.error(e)}
+    if(!r){setTimeout(step,0);return}
+    G.res={...r,L,id:'NP'+'BIAE'[L-1]+'-'+seed.toString(36).toUpperCase(),ms:Math.round(performance.now()-t0),clues:r.puzzle.filter(Boolean).length};
+    G.busy=false;G.msg='問題を作成しました。';G.k='ok';grender();
+  };
+  setTimeout(step,30);
+}
+function grender(){save();
+  $('#cards').innerHTML=LV.map((l,i)=>`<button type="button" class="card" data-l="${i+1}" aria-pressed="${G.d===i+1}"${G.busy?' disabled':''}><b>${l[0]}</b><span>${l[1]}</span></button>`).join('');
+  $('#gen-go').disabled=G.busy;$('#gen-go').textContent=G.busy?'作成中…':'新しい問題を作る';
+  $('#gagain').disabled=G.busy;
+  const r=G.res;$('#gres').hidden=!r;
+  if(r){
+    const v=G.show?r.solution:r.puzzle;
+    $('#ggrid').innerHTML=v.map((n,i)=>`<div class="c ${r.puzzle[i]?'given':'new'}" role="gridcell">${n||''}</div>`).join('');
+    $('#info').innerHTML=`<dt>難易度</dt><dd>${LV[r.L-1][0]}（暫定）</dd><dt>問題ID</dt><dd>${r.id}</dd><dt>空マス数</dt><dd>${81-r.clues}</dd><dt>最上位の手筋</dt><dd>${r.rating.search?'論理手筋だけでは解けない':TN[r.rating.tech-1]}</dd><dt>論理ステップ</dt><dd>${r.rating.steps}</dd><dt>生成時間</dt><dd>${(r.ms/1000).toFixed(1)}秒</dd>`;
+    $('#gans').textContent=G.show?'答えを隠す':'答えを見る';
+  }
+  $('#gstatus').textContent=G.msg||'難易度を選んで「新しい問題を作る」を押してください。';$('#gstatus').className=G.k;
+}
+$('#cards').onclick=e=>{const b=e.target.closest('.card');if(b&&!G.busy){G.d=+b.dataset.l;G.res=null;G.show=false;G.msg=null;G.k='';grender()}};
+$('#gen-go').onclick=gen;$('#gagain').onclick=gen;
+$('#gans').onclick=()=>{G.show=!G.show;grender()};
+$('#gsolve').onclick=()=>{const r=G.res;if(!r)return;aux();fx=r.puzzle.map(Boolean);fsol=r.solution;cells=r.puzzle.slice();puzzle=null;sol=null;hist=[];sel=-1;hintOn=false;warnEmpty=false;show('solver');setMsg('固定数字は変更できません。空マスに数字を入力するか、「解答する」を押してください。')};
+$('#gstart').onclick=()=>show('gen');
+$('#gback').onclick=$('#gtop').onclick=$('#hm').onclick=()=>show('home');
+document.addEventListener('keydown',e=>{
+  if($('#solver').hidden||e.target.tagName==='TEXTAREA')return;
+  if(/^[1-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey){put(+e.key);e.preventDefault()}
+  else if(e.key==='Backspace'||e.key==='Delete'||e.key==='0'){if(sel>=0&&cells[sel])put(0);e.preventDefault()}
+  else if((e.ctrlKey||e.metaKey)&&e.key==='z'){undo();e.preventDefault()}
+  else if(e.key.startsWith('Arrow')){move(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0,e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0);e.preventDefault()}
+});
+
+/* ===== localStorage 保存 ===== */
+const SK='nanpure-solver-v1';
+const okB=a=>Array.isArray(a)&&a.length===81&&a.every(v=>Number.isInteger(v)&&v>=0&&v<=9);
+function save(){
+  try{localStorage.setItem(SK,JSON.stringify({cells,fx,fsol,hc,notes,hm,puzzle,sol,multi,gd:G.d,gres:G.res,view:['home','solver','gen'].find(x=>!$('#'+x).hidden)}))}catch(e){}
+}
+function restore(){
+  try{
+    const s=JSON.parse(localStorage.getItem(SK)||'null');
+    if(!s||!okB(s.cells))return;
+    cells=s.cells;
+    fx=Array.isArray(s.fx)&&s.fx.length===81?s.fx.map(Boolean):null;
+    fsol=okB(s.fsol)?s.fsol:null;
+    hc=Number.isInteger(s.hc)&&s.hc>=0?s.hc:0;
+    notes=Array.isArray(s.notes)&&s.notes.length===81?s.notes.map(n=>(n|0)&0x3FE):null;
+    hm=Array.isArray(s.hm)&&s.hm.length===81?s.hm.map(Boolean):Array(81).fill(false);
+    if(okB(s.puzzle)&&okB(s.sol)&&s.sol.every(Boolean)){puzzle=s.puzzle;sol=s.sol;multi=!!s.multi}
+    if(s.gd>=1&&s.gd<=4)G.d=s.gd|0;
+    const r=s.gres;
+    if(r&&okB(r.puzzle)&&okB(r.solution)&&r.rating&&LV[r.L-1])G.res=r;
+    if(s.view==='solver'||s.view==='gen')show(s.view);
+  }catch(e){}
+}
+$('#wipe').onclick=()=>{try{localStorage.removeItem(SK)}catch(e){}location.reload()};
+restore();
+</script>
+</body>
+</html>
